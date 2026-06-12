@@ -50,7 +50,7 @@ class _GameScreenState extends State<GameScreen> {
               children: <Widget>[
                 Text(
                   status == GameStatus.playerWon ? 'Você Escapou!' : 'Você Foi Cercado!',
-                  style: const TextStyle(fontFamily: 'Pacifico', fontSize: 24),
+                  style: const TextStyle(fontFamily: 'Arial', fontSize: 24),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 15),
@@ -58,14 +58,14 @@ class _GameScreenState extends State<GameScreen> {
                   status == GameStatus.playerWon
                       ? 'Alcançou a Borda'
                       : 'O Gato Não Tem Saída',
-                  style: const TextStyle(fontFamily: 'Pacifico'),
+                  style: const TextStyle(fontFamily: 'Arial'),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
                 TextButton(
                   child: const Text(
                     'Reiniciar',
-                    style: TextStyle(fontFamily: 'Pacifico'),
+                    style: TextStyle(fontFamily: 'Arial'),
                   ),
                   onPressed: () {
                     Navigator.of(context).pop();
@@ -86,7 +86,7 @@ class _GameScreenState extends State<GameScreen> {
       appBar: AppBar(
         title: const Text(
           'Gato Preto',
-          style: TextStyle(fontFamily: 'Pacifico', fontSize: 26),
+          style: TextStyle(fontFamily: 'Arial', fontSize: 26),
         ),
       ),
       body: SafeArea(
@@ -102,7 +102,7 @@ class _GameScreenState extends State<GameScreen> {
                     children: [
                       Text(
                         'Suas Vitórias: ${game.playerScore}',
-                        style: const TextStyle(fontFamily: 'Pacifico'),
+                        style: const TextStyle(fontFamily: 'Arial'),
                       ),
                       ElevatedButton(
                         onPressed: () {
@@ -114,12 +114,12 @@ class _GameScreenState extends State<GameScreen> {
                         ),
                         child: const Text(
                           'Zerar Placar',
-                          style: TextStyle(fontFamily: 'Pacifico'),
+                          style: TextStyle(fontFamily: 'Arial'),
                         ),
                       ),
                       Text(
                         'CPU: ${game.cpuScore}',
-                        style: const TextStyle(fontFamily: 'Pacifico'),
+                        style: const TextStyle(fontFamily: 'Arial'),
                       ),
                     ],
                   );
