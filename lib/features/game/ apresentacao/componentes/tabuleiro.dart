@@ -12,6 +12,8 @@ class HexBoard extends StatelessWidget {
 
     return Consumer<GameLogic>(
       builder: (context, game, child) {
+        final validMoves = gameLogic.getAvailableMovesForCat();
+
         return FittedBox(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -23,9 +25,12 @@ class HexBoard extends StatelessWidget {
                 child: Row(
                   children: List.generate(row.length, (colIndex) {
                     final cell = row[colIndex];
+                    final isValidMove = validMoves.contains(cell);
+
                     return HexCell(
                       cell: cell,
-                      onTap: () => gameLogic.handlePlayerClick(cell.row, cell.col),
+                      isValidMove: isValidMove,
+                      onTap: () => gameLogic.handlePlayerMove(cell.row, cell.col),
                     );
                   }),
                 ),

@@ -6,14 +6,20 @@ import 'package:flutter/material.dart';
 class HexCell extends StatelessWidget {
   final CellModel cell;
   final VoidCallback onTap;
+  final bool isValidMove;
 
   const HexCell({
     super.key,
     required this.cell,
     required this.onTap,
+    this.isValidMove = false,
   });
 
   Color _getColorForState(CellState state) {
+    if (isValidMove && state == CellState.empty) {
+      return Color.fromARGB(255, 144, 238, 144); // Verde mais brilhante
+    }
+
     switch (state) {
       case CellState.empty: return AppColors.cell; 
       case CellState.blocked: return AppColors.cellBlocked;
@@ -31,8 +37,8 @@ class HexCell extends StatelessWidget {
           color: _getColorForState(cell.state), 
           width: 80, 
           height: 80, 
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
-}

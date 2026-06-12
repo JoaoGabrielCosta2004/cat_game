@@ -27,6 +27,10 @@ class GameLogic extends ChangeNotifier {
   int get cpuScore => _cpuScore;
   GameStatus get gameStatus => _gameStatus;
 
+  List<CellModel> getAvailableMovesForCat() {
+    return _getAvailableNeighbors(catPosition);
+  }
+
   GameLogic() {
     _initializeGame();
   }
@@ -79,66 +83,84 @@ class GameLogic extends ChangeNotifier {
     }
   }
 
-  void handlePlayerClick(int row, int col) {
+  void handlePlayerMove(int row, int col) {
     if (_gameStatus != GameStatus.playing) return;
 
     final cell = board[row][col];
-    if (cell.state != CellState.empty) return;
+    
+    if (!_isValidPlayerMove(cell)) return;
 
-    cell.state = CellState.blocked;
+    catPosition.state = CellState.empty;
+    catPosition = cell;
+    catPosition.state = CellState.cat;
+
+    if (_isOnEdge(catPosition)) {
+      _gameStatus = GameStatus.playerWon;
+      _playerScore++;
+      notifyListeners();
+      return;
+    }
+
+    if (_isSurrounded(catPosition)) {
+      _gameStatus = GameStatus.catWon;
+      _cpuScore++;
+      notifyListeners();
+      return;
+    }
+
     notifyListeners();
 
-    Future.delayed(const Duration(milliseconds: 300), _cpuMove);
+    Future.delayed(const Duration(milliseconds: 300), _cpuPlaceFence);
   }
 
-  void _cpuMove() {
+  bool _isValidPlayerMove(CellModel cell) {
+    if (cell.state != CellState.empty) return false;
+
+    final neighbors = _getAvailableNeighbors(catPosition);
+    return neighbors.contains(cell);
+  }
+
+  void _cpuPlaceFence() {
     if (_gameStatus != GameStatus.playing) return;
 
     const baseDepth = 3;
     final depth = (_distanceToEdge(catPosition) <= 3) ? 5 : baseDepth;
 
-    final bestMove = _minimax(catPosition, depth, true, -double.infinity, double.infinity);
+    final bestMove = _minimaxForFence(catPosition, depth, true, -double.infinity, double.infinity);
 
     if (bestMove.move != null) {
-      _catVisited.add(catPosition); 
-      catPosition.state = CellState.empty;
-      catPosition = bestMove.move!;
-      catPosition.state = CellState.cat;
+      bestMove.move!.state = CellState.blocked;
 
-      if (_isOnEdge(catPosition)) {
+      if (_isSurrounded(catPosition)) {
         _gameStatus = GameStatus.catWon;
         _cpuScore++;
       }
-    } else {
-      _gameStatus = GameStatus.playerWon;
-      _playerScore++;
     }
 
     notifyListeners();
   }
 
-  _MinimaxResult _minimax(CellModel position, int depth, bool isMaximizing, double alpha, double beta) {
-    if (depth == 0 || _isOnEdge(position) || _isSurrounded(position)) {
-      return _MinimaxResult(_evaluateBoard(position), null);
+  _MinimaxResult _minimaxForFence(CellModel catPos, int depth, bool isMaximizing, double alpha, double beta) {
+    if (depth == 0 || _isSurrounded(catPos)) {
+      return _MinimaxResult(_evaluateFencePosition(catPos), null);
     }
 
-    final neighbors = _getAvailableNeighbors(position);
+    final emptyCells = _getAllEmptyCells();
 
     if (isMaximizing) {
       double maxEval = -double.infinity;
       CellModel? bestMove;
 
-      for (final neighbor in neighbors) {
-        final eval = _minimax(neighbor, depth - 1, false, alpha, beta);
+      for (final emptyCell in emptyCells) {
+        emptyCell.state = CellState.blocked;
+
+        final eval = _minimaxForFence(catPos, depth - 1, false, alpha, beta);
+
+        emptyCell.state = CellState.empty;
 
         if (eval.score > maxEval) {
           maxEval = eval.score;
-          bestMove = neighbor;
-        }
-        else if (eval.score == maxEval && bestMove != null) {
-          if (_distanceToEdge(neighbor) < _distanceToEdge(bestMove)) {
-            bestMove = neighbor;
-          }
+          bestMove = emptyCell;
         }
 
         alpha = max(alpha, maxEval);
@@ -148,29 +170,50 @@ class GameLogic extends ChangeNotifier {
       return _MinimaxResult(maxEval, bestMove);
     } else {
       double minEval = double.infinity;
+      CellModel? bestMove;
 
-      for (final neighbor in neighbors) {
-        final eval = _minimax(neighbor, depth - 1, true, alpha, beta);
-        minEval = min(minEval, eval.score);
+      final availableMoves = _getAvailableNeighbors(catPos);
+
+      for (final move in availableMoves) {
+        final oldPos = catPos;
+        catPos = move;
+
+        final eval = _minimaxForFence(catPos, depth - 1, true, alpha, beta);
+
+        catPos = oldPos;
+
+        if (eval.score < minEval) {
+          minEval = eval.score;
+          bestMove = move;
+        }
+
         beta = min(beta, minEval);
         if (beta <= alpha) break;
       }
 
-      return _MinimaxResult(minEval, null);
+      return _MinimaxResult(minEval, bestMove);
     }
   }
 
-  double _evaluateBoard(CellModel position) {
-    if (_isOnEdge(position)) return 100.0;
-    if (_isSurrounded(position)) return -100.0;
-
-    if (_catVisited.contains(position)) {
-      return -200.0;
+  List<CellModel> _getAllEmptyCells() {
+    final emptyCells = <CellModel>[];
+    for (var row in board) {
+      for (var cell in row) {
+        if (cell.state == CellState.empty) {
+          emptyCells.add(cell);
+        }
+      }
     }
+    return emptyCells;
+  }
 
-    final queue = Queue<List<CellModel>>()..add([position]);
-    final visited = {position};
+  double _evaluateFencePosition(CellModel catPos) {
+    if (_isSurrounded(catPos)) return 100.0;
 
+    if (_isOnEdge(catPos)) return -100.0;
+
+    final queue = Queue<List<CellModel>>()..add([catPos]);
+    final visited = {catPos};
     int distance = 0;
 
     while (queue.isNotEmpty) {
@@ -180,14 +223,16 @@ class GameLogic extends ChangeNotifier {
 
       for (final neighbor in _getAvailableNeighbors(current)) {
         if (!visited.contains(neighbor)) {
-          if (_isOnEdge(neighbor)) return 50.0 - distance;
+          if (_isOnEdge(neighbor)) {
+            return -(50.0 - distance);
+          }
           visited.add(neighbor);
           queue.add([...path, neighbor]);
         }
       }
     }
 
-    return -50.0;
+    return 50.0;
   }
 
   bool _isOnEdge(CellModel cell) {

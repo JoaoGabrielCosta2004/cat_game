@@ -49,15 +49,15 @@ class _GameScreenState extends State<GameScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
                 Text(
-                  status == GameStatus.playerWon ? 'Você Venceu!' : 'Você Perdeu!',
+                  status == GameStatus.playerWon ? 'Você Escapou!' : 'Você Foi Cercado!',
                   style: const TextStyle(fontFamily: 'Pacifico', fontSize: 24),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 15),
                 Text(
                   status == GameStatus.playerWon
-                      ? 'Você O Capturou'
-                      : 'O Gato Escapou',
+                      ? 'Alcançou a Borda'
+                      : 'O Gato Não Tem Saída',
                   style: const TextStyle(fontFamily: 'Pacifico'),
                   textAlign: TextAlign.center,
                 ),
@@ -101,7 +101,7 @@ class _GameScreenState extends State<GameScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       Text(
-                        'Jogador: ${game.playerScore}',
+                        'Suas Vitórias: ${game.playerScore}',
                         style: const TextStyle(fontFamily: 'Pacifico'),
                       ),
                       ElevatedButton(
@@ -118,7 +118,7 @@ class _GameScreenState extends State<GameScreen> {
                         ),
                       ),
                       Text(
-                        'Gato: ${game.cpuScore}',
+                        'CPU: ${game.cpuScore}',
                         style: const TextStyle(fontFamily: 'Pacifico'),
                       ),
                     ],
