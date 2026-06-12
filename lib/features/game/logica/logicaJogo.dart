@@ -7,12 +7,6 @@ import 'package:chat_noir/features/game/data/modeloCelula.dart';
 
 enum GameStatus { playing, playerWon, catWon }
 
-class _MinimaxResult {
-  final double score;
-  final CellModel? move;
-  _MinimaxResult(this.score, this.move);
-}
-
 class GameLogic extends ChangeNotifier {
   int _playerScore = 0;
   int _cpuScore = 0;
@@ -123,76 +117,178 @@ class GameLogic extends ChangeNotifier {
   void _cpuPlaceFence() {
     if (_gameStatus != GameStatus.playing) return;
 
-    const baseDepth = 3;
-    final depth = (_distanceToEdge(catPosition) <= 3) ? 5 : baseDepth;
+    const maxFenceDistance = 5;
+    final shortestPath = _findShortestPathToEdge(catPosition);
 
-    final bestMove = _minimaxForFence(catPosition, depth, true, -double.infinity, double.infinity);
-
-    if (bestMove.move != null) {
-      bestMove.move!.state = CellState.blocked;
-
-      if (_isSurrounded(catPosition)) {
-        _gameStatus = GameStatus.catWon;
-        _cpuScore++;
+    if (shortestPath == null) {
+      _placeNearbyFence(maxFenceDistance);
+    } else {
+      final placed = _placeFenceAlongShortestPath(shortestPath, maxFenceDistance);
+      if (!placed) {
+        _placeNearbyFence(maxFenceDistance);
       }
+    }
+
+    if (_isSurrounded(catPosition)) {
+      _gameStatus = GameStatus.catWon;
+      _cpuScore++;
     }
 
     notifyListeners();
   }
 
-  _MinimaxResult _minimaxForFence(CellModel catPos, int depth, bool isMaximizing, double alpha, double beta) {
-    if (depth == 0 || _isSurrounded(catPos)) {
-      return _MinimaxResult(_evaluateFencePosition(catPos), null);
-    }
+  List<CellModel>? _findShortestPathToEdge(CellModel startPos) {
+    final queue = Queue<List<CellModel>>()..add([startPos]);
+    final visited = {startPos};
 
-    final emptyCells = _getAllEmptyCells();
+    while (queue.isNotEmpty) {
+      final path = queue.removeFirst();
+      final current = path.last;
 
-    if (isMaximizing) {
-      double maxEval = -double.infinity;
-      CellModel? bestMove;
-
-      for (final emptyCell in emptyCells) {
-        emptyCell.state = CellState.blocked;
-
-        final eval = _minimaxForFence(catPos, depth - 1, false, alpha, beta);
-
-        emptyCell.state = CellState.empty;
-
-        if (eval.score > maxEval) {
-          maxEval = eval.score;
-          bestMove = emptyCell;
-        }
-
-        alpha = max(alpha, maxEval);
-        if (beta <= alpha) break;
+      if (_isOnEdge(current) && current != startPos) {
+        return path;
       }
 
-      return _MinimaxResult(maxEval, bestMove);
+      for (final neighbor in _getAvailableNeighbors(current)) {
+        if (visited.contains(neighbor)) continue;
+        visited.add(neighbor);
+        queue.add([...path, neighbor]);
+      }
+    }
+
+    return null;
+  }
+
+  bool _placeFenceAlongShortestPath(List<CellModel> path, int maxDistance) {
+    if (path.length <= 1) return false;
+
+    final candidates = <CellModel>[];
+    final maxIndex = min(path.length - 1, maxDistance);
+
+    for (var i = 1; i <= maxIndex; i++) {
+      final cell = path[i];
+      if (cell.state == CellState.empty) {
+        candidates.add(cell);
+      }
+    }
+
+    if (candidates.isEmpty) return false;
+
+    CellModel? bestCell;
+    int bestDistance = -1;
+    int bestIndex = -1;
+
+    for (var index = 0; index < candidates.length; index++) {
+      final candidate = candidates[index];
+      candidate.state = CellState.blocked;
+      final newPath = _findShortestPathToEdge(catPosition);
+      candidate.state = CellState.empty;
+
+      if (newPath == null) {
+        bestCell = candidate;
+        break;
+      }
+
+      final distance = newPath.length - 1;
+      if (distance > bestDistance || (distance == bestDistance && index > bestIndex)) {
+        bestDistance = distance;
+        bestCell = candidate;
+        bestIndex = index;
+      }
+    }
+
+    if (bestCell != null) {
+      bestCell.state = CellState.blocked;
+      return true;
+    }
+
+    return false;
+  }
+
+  void _placeNearbyFence(int maxDistance) {
+    final nearbyEmpty = _getNearestEmptyCellsWithinDistance(catPosition, maxDistance);
+    if (nearbyEmpty.isNotEmpty) {
+      final random = Random();
+      nearbyEmpty[random.nextInt(nearbyEmpty.length)].state = CellState.blocked;
+      return;
+    }
+
+    final nearestEmpty = _getNearestEmptyCells(catPosition);
+    if (nearestEmpty.isNotEmpty) {
+      final random = Random();
+      nearestEmpty[random.nextInt(nearestEmpty.length)].state = CellState.blocked;
     } else {
-      double minEval = double.infinity;
-      CellModel? bestMove;
+      _placeRandomFence();
+    }
+  }
 
-      final availableMoves = _getAvailableNeighbors(catPos);
+  List<CellModel> _getNearestEmptyCellsWithinDistance(CellModel startPos, int maxDistance) {
+    final queue = Queue<List<CellModel>>()..add([startPos]);
+    final visited = {startPos};
+    final found = <CellModel>[];
+    int? foundDistance;
 
-      for (final move in availableMoves) {
-        final oldPos = catPos;
-        catPos = move;
+    while (queue.isNotEmpty) {
+      final path = queue.removeFirst();
+      final current = path.last;
+      final currentDistance = path.length - 1;
 
-        final eval = _minimaxForFence(catPos, depth - 1, true, alpha, beta);
-
-        catPos = oldPos;
-
-        if (eval.score < minEval) {
-          minEval = eval.score;
-          bestMove = move;
-        }
-
-        beta = min(beta, minEval);
-        if (beta <= alpha) break;
+      if (foundDistance != null && currentDistance > foundDistance) {
+        continue;
+      }
+      if (currentDistance > maxDistance) {
+        continue;
       }
 
-      return _MinimaxResult(minEval, bestMove);
+      if (currentDistance > 0 && current.state == CellState.empty) {
+        foundDistance ??= currentDistance;
+        if (currentDistance == foundDistance) {
+          found.add(current);
+        }
+        continue;
+      }
+
+      for (final neighbor in _getNeighbors(current)) {
+        if (visited.contains(neighbor)) continue;
+        visited.add(neighbor);
+        queue.add([...path, neighbor]);
+      }
     }
+
+    return found;
+  }
+
+  List<CellModel> _getNearestEmptyCells(CellModel startPos) {
+    final queue = Queue<List<CellModel>>()..add([startPos]);
+    final visited = {startPos};
+    final found = <CellModel>[];
+    int? foundDistance;
+
+    while (queue.isNotEmpty) {
+      final path = queue.removeFirst();
+      final current = path.last;
+      final currentDistance = path.length - 1;
+
+      if (foundDistance != null && currentDistance > foundDistance) {
+        continue;
+      }
+
+      if (currentDistance > 0 && current.state == CellState.empty) {
+        foundDistance ??= currentDistance;
+        if (currentDistance == foundDistance) {
+          found.add(current);
+        }
+        continue;
+      }
+
+      for (final neighbor in _getNeighbors(current)) {
+        if (visited.contains(neighbor)) continue;
+        visited.add(neighbor);
+        queue.add([...path, neighbor]);
+      }
+    }
+
+    return found;
   }
 
   List<CellModel> _getAllEmptyCells() {
@@ -207,32 +303,12 @@ class GameLogic extends ChangeNotifier {
     return emptyCells;
   }
 
-  double _evaluateFencePosition(CellModel catPos) {
-    if (_isSurrounded(catPos)) return 100.0;
-
-    if (_isOnEdge(catPos)) return -100.0;
-
-    final queue = Queue<List<CellModel>>()..add([catPos]);
-    final visited = {catPos};
-    int distance = 0;
-
-    while (queue.isNotEmpty) {
-      distance++;
-      final path = queue.removeFirst();
-      final current = path.last;
-
-      for (final neighbor in _getAvailableNeighbors(current)) {
-        if (!visited.contains(neighbor)) {
-          if (_isOnEdge(neighbor)) {
-            return -(50.0 - distance);
-          }
-          visited.add(neighbor);
-          queue.add([...path, neighbor]);
-        }
-      }
+  void _placeRandomFence() {
+    final emptyCells = _getAllEmptyCells();
+    if (emptyCells.isNotEmpty) {
+      final random = Random();
+      emptyCells[random.nextInt(emptyCells.length)].state = CellState.blocked;
     }
-
-    return 50.0;
   }
 
   bool _isOnEdge(CellModel cell) {
@@ -270,11 +346,4 @@ class GameLogic extends ChangeNotifier {
     return neighbors;
   }
 
-  int _distanceToEdge(CellModel cell) {
-    final top = cell.row;
-    final bottom = kNumRows - 1 - cell.row;
-    final left = cell.col;
-    final right = kNumCols - 1 - cell.col;
-    return min(min(top, bottom), min(left, right));
-  }
 }
